@@ -28,16 +28,17 @@ export default async function Impatto() {
     <main>
       {/* Hero */}
       <section className="page-hero text-center" style={{ 
-        background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 50%, #eff6ff 100%)',
-        padding: '100px 0 60px'
+        background: 'var(--bg-alt)',
+        padding: '100px 0 60px',
+        borderBottom: '1px solid var(--border-color)'
       }}>
         <div className="container">
           <FadeIn>
-            <Globe size={50} style={{ color: '#22c55e', marginBottom: '20px' }} />
-            <h1 className="hero-title" style={{ fontSize: '2.8rem', color: '#14532d' }}>
+            <Globe size={50} style={{ color: 'var(--accent-green)', marginBottom: '20px' }} />
+            <h1 className="hero-title" style={{ fontSize: '2.8rem', color: 'var(--text-primary)' }}>
               Il Nostro Impatto
             </h1>
-            <p className="hero-subtitle" style={{ maxWidth: '600px', margin: '0 auto', color: '#166534' }}>
+            <p className="hero-subtitle" style={{ maxWidth: '600px', margin: '0 auto', color: 'var(--text-secondary)' }}>
               Ogni vaso PLANT contribuisce a un mondo più verde. Insieme, stiamo facendo la differenza.
             </p>
           </FadeIn>
@@ -55,15 +56,16 @@ export default async function Impatto() {
               {/* Acqua Risparmiata */}
               <div style={{ 
                 padding: '35px 25px', borderRadius: '16px', textAlign: 'center',
-                background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
-                boxShadow: '0 4px 15px rgba(59, 130, 246, 0.1)'
+                background: 'var(--card-bg)',
+                border: '1px solid var(--border-color)',
+                boxShadow: 'var(--shadow-sm)'
               }}>
                 <Droplets size={40} style={{ color: '#3b82f6', marginBottom: '15px' }} />
-                <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#1e40af', lineHeight: 1 }}>
+                <div style={{ fontSize: '2.5rem', fontWeight: '800', color: 'var(--text-primary)', lineHeight: 1 }}>
                   {globalWaterSaved >= 1000 ? `${(globalWaterSaved / 1000).toFixed(1)}K` : globalWaterSaved.toFixed(0)}
                 </div>
-                <div style={{ fontSize: '1.1rem', color: '#1e40af', marginTop: '5px' }}>Litri d'Acqua Risparmiati</div>
-                <p style={{ fontSize: '0.8rem', color: '#3b82f6', marginTop: '10px' }}>
+                <div style={{ fontSize: '1.1rem', color: 'var(--text-primary)', marginTop: '5px' }}>Litri d'Acqua Risparmiati</div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '10px' }}>
                   L'irrigazione smart riduce il consumo idrico fino al 40% rispetto all'innaffiatura manuale.
                 </p>
               </div>
@@ -71,15 +73,16 @@ export default async function Impatto() {
               {/* Ossigeno Generato */}
               <div style={{ 
                 padding: '35px 25px', borderRadius: '16px', textAlign: 'center',
-                background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
-                boxShadow: '0 4px 15px rgba(34, 197, 94, 0.1)'
+                background: 'var(--card-bg)',
+                border: '1px solid var(--border-color)',
+                boxShadow: 'var(--shadow-sm)'
               }}>
-                <Wind size={40} style={{ color: '#22c55e', marginBottom: '15px' }} />
-                <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#166534', lineHeight: 1 }}>
+                <Wind size={40} style={{ color: 'var(--accent-green)', marginBottom: '15px' }} />
+                <div style={{ fontSize: '2.5rem', fontWeight: '800', color: 'var(--text-primary)', lineHeight: 1 }}>
                   {globalOxygen >= 1000 ? `${(globalOxygen / 1000).toFixed(1)}K` : globalOxygen.toFixed(0)}
                 </div>
-                <div style={{ fontSize: '1.1rem', color: '#166534', marginTop: '5px' }}>Grammi di O₂ Generati</div>
-                <p style={{ fontSize: '0.8rem', color: '#22c55e', marginTop: '10px' }}>
+                <div style={{ fontSize: '1.1rem', color: 'var(--text-primary)', marginTop: '5px' }}>Grammi di O₂ Generati</div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '10px' }}>
                   Le piante curate producono ossigeno in modo continuo, migliorando la qualità dell'aria domestica.
                 </p>
               </div>
@@ -87,15 +90,16 @@ export default async function Impatto() {
               {/* CO2 Assorbita */}
               <div style={{ 
                 padding: '35px 25px', borderRadius: '16px', textAlign: 'center',
-                background: 'linear-gradient(135deg, #fefce8, #fef9c3)',
-                boxShadow: '0 4px 15px rgba(202, 138, 4, 0.1)'
+                background: 'var(--card-bg)',
+                border: '1px solid var(--border-color)',
+                boxShadow: 'var(--shadow-sm)'
               }}>
                 <Leaf size={40} style={{ color: '#ca8a04', marginBottom: '15px' }} />
-                <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#854d0e', lineHeight: 1 }}>
+                <div style={{ fontSize: '2.5rem', fontWeight: '800', color: 'var(--text-primary)', lineHeight: 1 }}>
                   {globalCO2Absorbed >= 1000 ? `${(globalCO2Absorbed / 1000).toFixed(1)}K` : globalCO2Absorbed.toFixed(0)}
                 </div>
-                <div style={{ fontSize: '1.1rem', color: '#854d0e', marginTop: '5px' }}>Grammi di CO₂ Assorbiti</div>
-                <p style={{ fontSize: '0.8rem', color: '#ca8a04', marginTop: '10px' }}>
+                <div style={{ fontSize: '1.1rem', color: 'var(--text-primary)', marginTop: '5px' }}>Grammi di CO₂ Assorbiti</div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '10px' }}>
                   Ogni pianta viva assorbe anidride carbonica, contribuendo a un ambiente più pulito.
                 </p>
               </div>
@@ -131,17 +135,18 @@ export default async function Impatto() {
           <FadeIn>
             <div style={{ 
               marginTop: '50px', padding: '40px', borderRadius: '16px', textAlign: 'center',
-              background: 'linear-gradient(135deg, #14532d, #166534)',
-              color: 'white'
+              background: 'var(--accent-green)',
+              color: 'white',
+              boxShadow: 'var(--shadow-lg)'
             }}>
               <Sprout size={40} style={{ marginBottom: '15px', opacity: 0.9 }} />
-              <h2 style={{ fontSize: '1.8rem', marginBottom: '15px' }}>Unisciti alla Rivoluzione Verde</h2>
-              <p style={{ maxWidth: '550px', margin: '0 auto 25px', opacity: 0.9, lineHeight: 1.6 }}>
+              <h2 style={{ fontSize: '1.8rem', marginBottom: '15px', color: 'white' }}>Unisciti alla Rivoluzione Verde</h2>
+              <p style={{ maxWidth: '550px', margin: '0 auto 25px', opacity: 0.9, lineHeight: 1.6, color: 'white' }}>
                 Ogni vaso PLANT è un piccolo ecosistema che lavora per te e per il pianeta.
                 Risparmia acqua, crea ossigeno, assorbi CO₂. Tutto in automatico.
               </p>
               <a href="/prodotti" className="btn" style={{ 
-                background: 'white', color: '#166534', padding: '12px 28px', borderRadius: '8px',
+                background: 'white', color: 'var(--accent-green)', padding: '12px 28px', borderRadius: '8px',
                 fontWeight: '600', textDecoration: 'none', display: 'inline-block'
               }}>
                 Scopri i Vasi PLANT

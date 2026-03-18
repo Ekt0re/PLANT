@@ -5,6 +5,7 @@ import { createClient } from '@/utils/supabase/client';
 import { useState, useEffect } from 'react';
 import { User, Wifi, WifiOff, Plus, Droplets, Wind, Leaf, Package, Heart, LogOut, Save, Edit3, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { cachedFetch, invalidateCache, clearAllCache } from '@/hooks/useCache';
 
 export default function Profilo() {
   const supabase = createClient();
@@ -29,60 +30,86 @@ export default function Profilo() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.push('/account'); return; }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.push('/account'); return; }
 
-      setUser(session.user);
+      setUser(user);
 
-      // Carica profilo
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-      setProfile(prof);
-      if (prof) {
-        setProfileForm({
-          first_name: prof.first_name || '',
-          last_name: prof.last_name || '',
-          birth_date: prof.birth_date || '',
-          address: prof.address || '',
-          phone: prof.phone || ''
-        });
+      try {
+        // Caricamento parallelo con Cache (TTL standard 5 min)
+        const [profileRes, devicesRes, productsRes] = await Promise.all([
+          cachedFetch('profile', async () => {
+            const res = await fetch('/api/profile/get');
+            return await res.json();
+          }),
+          cachedFetch('devices', async () => {
+            const { data } = await supabase
+              .from('devices')
+              .select('*, product:products(name, slug), device_status:status(type)')
+              .eq('user_id', user.id)
+              .order('created_at', { ascending: false });
+            return { data };
+          }),
+          cachedFetch('products', async () => {
+             const { data } = await supabase
+              .from('products')
+              .select('id, name')
+              .eq('category_id', 1)
+              .eq('is_active', true);
+             return { data };
+          })
+        ]);
+
+        // Gestione Profilo
+        const prof = profileRes;
+        if (!prof.error) {
+          setProfile(prof);
+          setProfileForm({
+            first_name: prof.first_name || '',
+            last_name: prof.last_name || '',
+            birth_date: prof.birth_date || '',
+            address: prof.address || '',
+            phone: prof.phone || ''
+          });
+        }
+
+        // Gestione Dispositivi
+        if (devicesRes.data) {
+          setDevices(devicesRes.data);
+        }
+
+        // Gestione Prodotti per form
+        if (productsRes.data) {
+          setProducts(productsRes.data);
+        }
+
+      } catch (err) {
+        console.error("Errore nel caricamento dinamico dei dati:", err);
+      } finally {
+        setLoading(false);
       }
-
-      // Carica dispositivi con info prodotto e status
-      const { data: devs } = await supabase
-        .from('devices')
-        .select('*, product:products(name, slug), device_status:status(type)')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false });
-      setDevices(devs || []);
-
-      // Carica prodotti per il form (solo vasi, category_id = 1)
-      const { data: prods } = await supabase.from('products').select('id, name').eq('category_id', 1).eq('is_active', true);
-      setProducts(prods || []);
-
-      setLoading(false);
     };
     load();
   }, [supabase, router]);
 
   const handleSaveProfile = async () => {
     setSaving(true);
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        first_name: profileForm.first_name || null,
-        last_name: profileForm.last_name || null,
-        birth_date: profileForm.birth_date || null,
-        address: profileForm.address || null,
-        phone: profileForm.phone || null,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', user.id);
+    
+    // Salvataggio tramite API Backend (con cifratura e validazione)
+    const res = await fetch('/api/profile/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profileForm)
+    });
 
-    if (!error) {
+    const result = await res.json();
+
+    if (!result.error) {
       setProfile({ ...profile, ...profileForm });
       setEditing(false);
+      invalidateCache('profile'); // Invalida la cache del profilo dopo il salvataggio
     } else {
-      alert('Errore nel salvataggio del profilo.');
+      alert(result.error || 'Errore nel salvataggio del profilo.');
     }
     setSaving(false);
   };
@@ -92,31 +119,36 @@ export default function Profilo() {
     if (!deviceForm.name || !deviceForm.product_id) return;
 
     setSavingDevice(true);
-    const { data: { session } } = await supabase.auth.getSession();
+    
+    // Salvataggio tramite API Backend
+    const res = await fetch('/api/devices/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(deviceForm)
+    });
 
-    const { error } = await supabase.from('devices').insert([{
-      user_id: session.user.id,
-      name: deviceForm.name,
-      product_id: parseInt(deviceForm.product_id),
-      mac_address: deviceForm.mac_address || null,
-      status_id: 1,
-    }]);
+    const result = await res.json();
 
-    if (!error) {
+    if (!result.error) {
       setDeviceForm({ name: '', product_id: '', mac_address: '' });
       setShowAddDevice(false);
+      
+      // Ricarica dispositivi
+      const { data: { session } } = await supabase.auth.getSession();
       const { data: devs } = await supabase
         .from('devices')
         .select('*, product:products(name, slug), device_status:status(type)')
         .eq('user_id', session.user.id);
       setDevices(devs || []);
+      invalidateCache('devices'); // Invalida la cache dei dispositivi
     } else {
-      alert('Errore nel salvataggio del dispositivo.');
+      alert(result.error || 'Errore nel salvataggio del dispositivo.');
     }
     setSavingDevice(false);
   };
 
   const handleLogout = async () => {
+    clearAllCache(); // Pulisce tutta la cache al logout
     await supabase.auth.signOut();
     router.push('/');
     router.refresh();
@@ -138,11 +170,11 @@ export default function Profilo() {
           <FadeIn>
             <div style={{
               width: '80px', height: '80px', borderRadius: '50%',
-              background: 'linear-gradient(135deg, #4ade80, #22c55e)',
+              background: 'var(--accent-green)',
               margin: '0 auto 20px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 8px 25px rgba(74, 222, 128, 0.3)'
+              boxShadow: '0 8px 25px rgba(167, 196, 170, 0.2)'
             }}>
-              <User size={36} color="white" />
+              <User size={36} color="var(--white)" />
             </div>
             <h1 className="hero-title" style={{ fontSize: '2rem' }}>
               {profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}`.trim() : user?.email?.split('@')[0]}
@@ -161,20 +193,20 @@ export default function Profilo() {
               display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px',
               marginBottom: '30px'
             }}>
-              <div className="account-card" style={{ padding: '25px', textAlign: 'center', background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)' }}>
-                <Leaf size={28} style={{ color: '#22c55e', marginBottom: '10px' }} />
-                <div style={{ fontSize: '1.8rem', fontWeight: '800', color: '#166534' }}>{totalDevices}</div>
-                <div style={{ fontSize: '0.85rem', color: '#166534' }}>Vasi Connessi</div>
+              <div className="account-card" style={{ padding: '25px', textAlign: 'center', background: 'var(--accent-green-light)', border: '1px solid var(--accent-green)' }}>
+                <Leaf size={28} style={{ color: 'var(--accent-green)', marginBottom: '10px' }} />
+                <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--text-primary)' }}>{totalDevices}</div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Vasi Connessi</div>
               </div>
-              <div className="account-card" style={{ padding: '25px', textAlign: 'center', background: 'linear-gradient(135deg, #eff6ff, #dbeafe)' }}>
+              <div className="account-card" style={{ padding: '25px', textAlign: 'center', background: 'var(--bg-alt)', border: '1px solid var(--border-color)' }}>
                 <Droplets size={28} style={{ color: '#3b82f6', marginBottom: '10px' }} />
-                <div style={{ fontSize: '1.8rem', fontWeight: '800', color: '#1e40af' }}>{waterSaved.toFixed(1)}L</div>
-                <div style={{ fontSize: '0.85rem', color: '#1e40af' }}>Acqua Risparmiata</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--text-primary)' }}>{waterSaved.toFixed(1)}L</div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Acqua Risparmiata</div>
               </div>
-              <div className="account-card" style={{ padding: '25px', textAlign: 'center', background: 'linear-gradient(135deg, #fefce8, #fef9c3)' }}>
+              <div className="account-card" style={{ padding: '25px', textAlign: 'center', background: 'var(--bg-alt)', border: '1px solid var(--border-color)' }}>
                 <Wind size={28} style={{ color: '#ca8a04', marginBottom: '10px' }} />
-                <div style={{ fontSize: '1.8rem', fontWeight: '800', color: '#854d0e' }}>{oxygenGenerated.toFixed(0)}g</div>
-                <div style={{ fontSize: '0.85rem', color: '#854d0e' }}>O₂ Generato</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--text-primary)' }}>{oxygenGenerated.toFixed(0)}g</div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>O₂ Generato</div>
               </div>
             </div>
           </FadeIn>
@@ -183,7 +215,9 @@ export default function Profilo() {
           <FadeIn>
             <div className="account-card" style={{ padding: '30px', marginBottom: '25px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h3 style={{ margin: 0 }}>👤 Informazioni Personali</h3>
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <User size={20} color="var(--accent-green)" /> Informazioni Personali
+                </h3>
                 {!editing ? (
                   <button
                     onClick={() => setEditing(true)}
@@ -216,66 +250,66 @@ export default function Profilo() {
                 /* FORM DI MODIFICA */
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '6px', color: '#86868b' }}>Nome</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>Nome</label>
                     <input type="text" placeholder="Es: Marco" value={profileForm.first_name}
                       onChange={e => setProfileForm({ ...profileForm, first_name: e.target.value })}
-                      style={{ width: '100%', padding: '10px 14px', border: '1px solid #ddd', borderRadius: '12px', fontSize: '0.95rem', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
+                      style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border-color)', borderRadius: '12px', fontSize: '0.95rem', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '6px', color: '#86868b' }}>Cognome</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>Cognome</label>
                     <input type="text" placeholder="Es: Rossi" value={profileForm.last_name}
                       onChange={e => setProfileForm({ ...profileForm, last_name: e.target.value })}
-                      style={{ width: '100%', padding: '10px 14px', border: '1px solid #ddd', borderRadius: '12px', fontSize: '0.95rem', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
+                      style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border-color)', borderRadius: '12px', fontSize: '0.95rem', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '6px', color: '#86868b' }}>Data di nascita</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>Data di nascita</label>
                     <input type="date" value={profileForm.birth_date}
                       onChange={e => setProfileForm({ ...profileForm, birth_date: e.target.value })}
                       className="date-picker-styled"
                       style={{
-                        width: '100%', padding: '12px 16px', border: '2px solid var(--border-color)', borderRadius: '12px',
+                        width: '100%', padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '12px',
                         fontSize: '0.95rem', background: 'var(--input-bg)', color: 'var(--text-primary)',
                         fontFamily: 'inherit', cursor: 'pointer', transition: 'border-color 0.3s'
                       }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '6px', color: '#86868b' }}>Telefono</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>Telefono</label>
                     <input type="tel" placeholder="Es: +39 333 1234567" value={profileForm.phone}
                       onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
-                      style={{ width: '100%', padding: '10px 14px', border: '1px solid #ddd', borderRadius: '12px', fontSize: '0.95rem', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
+                      style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border-color)', borderRadius: '12px', fontSize: '0.95rem', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '6px', color: '#86868b' }}>Indirizzo</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>Indirizzo</label>
                     <input type="text" placeholder="Es: Via Roma 1, 20100 Milano" value={profileForm.address}
                       onChange={e => setProfileForm({ ...profileForm, address: e.target.value })}
-                      style={{ width: '100%', padding: '10px 14px', border: '1px solid #ddd', borderRadius: '12px', fontSize: '0.95rem', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
+                      style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border-color)', borderRadius: '12px', fontSize: '0.95rem', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
                   </div>
                 </div>
               ) : (
                 /* VISUALIZZAZIONE DATI */
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
                   <div>
-                    <div style={{ fontSize: '0.8rem', color: '#86868b', marginBottom: '4px' }}>Nome</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Nome</div>
                     <div style={{ fontWeight: '500' }}>{profile?.first_name || '—'}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.8rem', color: '#86868b', marginBottom: '4px' }}>Cognome</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Cognome</div>
                     <div style={{ fontWeight: '500' }}>{profile?.last_name || '—'}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.8rem', color: '#86868b', marginBottom: '4px' }}>Data di nascita</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Data di nascita</div>
                     <div style={{ fontWeight: '500' }}>{profile?.birth_date ? new Date(profile.birth_date).toLocaleDateString('it-IT') : '—'}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.8rem', color: '#86868b', marginBottom: '4px' }}>Telefono</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Telefono</div>
                     <div style={{ fontWeight: '500' }}>{profile?.phone || '—'}</div>
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>
-                    <div style={{ fontSize: '0.8rem', color: '#86868b', marginBottom: '4px' }}>Indirizzo</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Indirizzo</div>
                     <div style={{ fontWeight: '500' }}>{profile?.address || '—'}</div>
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>
-                    <div style={{ fontSize: '0.8rem', color: '#86868b', marginBottom: '4px' }}>Email</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Email</div>
                     <div style={{ fontWeight: '500' }}>{user?.email}</div>
                   </div>
                 </div>
@@ -287,7 +321,9 @@ export default function Profilo() {
           <FadeIn>
             <div className="account-card" style={{ padding: '30px', marginBottom: '25px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h3 style={{ margin: 0 }}>🌱 I Miei Dispositivi</h3>
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Leaf size={20} color="var(--accent-green)" /> I Miei Dispositivi
+                </h3>
                 <button
                   onClick={() => setShowAddDevice(!showAddDevice)}
                   className="btn btn-primary"
@@ -335,7 +371,7 @@ export default function Profilo() {
               )}
 
               {devices.length === 0 ? (
-                <p style={{ color: '#666', textAlign: 'center', padding: '30px 0' }}>
+                <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '30px 0' }}>
                   Nessun dispositivo collegato. Registra il tuo primo vaso PLANT!
                 </p>
               ) : (
@@ -354,8 +390,8 @@ export default function Profilo() {
                         </div>
                         <div style={{ 
                           padding: '6px', borderRadius: '50%', 
-                          background: dev.device_status?.type === 'Active' ? 'var(--accent-green-light)' : '#f5f5f7',
-                          color: dev.device_status?.type === 'Active' ? '#166534' : '#86868b'
+                          background: dev.device_status?.type === 'Active' ? 'var(--accent-green-light)' : 'var(--bg-alt)',
+                          color: dev.device_status?.type === 'Active' ? 'var(--accent-green)' : 'var(--text-secondary)'
                         }}>
                           {dev.device_status?.type === 'Active' ? <Wifi size={18} /> : <WifiOff size={18} />}
                         </div>
@@ -372,8 +408,8 @@ export default function Profilo() {
                             <div style={{ width: '42%', height: '100%', background: 'var(--accent-green)', borderRadius: '3px' }}></div>
                           </div>
                         </div>
-                        <div style={{ borderLeft: '1px solid #eee', paddingLeft: '15px' }}>
-                          <div style={{ fontSize: '0.75rem', color: '#86868b', marginBottom: '2px' }}>Temp.</div>
+                        <div style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '15px' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '2px' }}>Temp.</div>
                           <div style={{ fontSize: '1.1rem', fontWeight: '700' }}>24°C</div>
                         </div>
                       </div>

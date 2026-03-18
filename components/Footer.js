@@ -3,13 +3,16 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { Sun, Moon } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
+import Image from 'next/image';
 
 export default function Footer() {
   const supabase = createClient();
   const [dbStatus, setDbStatus] = useState('Verifica...');
   const [dbTimestamp, setDbTimestamp] = useState('');
   const [theme, setTheme] = useState('light');
+  const pathname = usePathname();
 
   useEffect(() => {
     // Check theme initially
@@ -59,16 +62,38 @@ export default function Footer() {
     }
   };
 
+  if (pathname === '/maintenance') return null;
+
   return (
     <footer>
       <div className="container">
         <div className="footer-grid">
+          <div className="footer-col" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
+              <Image 
+                src="/assets/Logo.png" 
+                alt="PLANT Logo" 
+                width={30} 
+                height={30} 
+                style={{ objectFit: 'contain', height: '30px', width: 'auto' }}
+              />
+              <span style={{ 
+                fontSize: '1.2rem', 
+                fontWeight: '800', 
+                letterSpacing: '-0.02em',
+                color: 'var(--text-primary)'
+              }}>PLANT</span>
+            </Link>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '200px' }}>
+              Tecnologia e natura in perfetta armonia per la tua casa.
+            </p>
+          </div>
           <div className="footer-col">
             <h4>Esplora</h4>
             <ul>
               <li><Link href="/">Home</Link></li>
               <li><Link href="/prodotti">Prodotti</Link></li>
-              <li><Link href="/accessori">Accessori</Link></li>
+              <li><Link href="/news">News</Link></li>
             </ul>
           </div>
           <div className="footer-col">

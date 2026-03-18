@@ -48,7 +48,7 @@ export default function ResetPassword() {
           <div className="account-grid" style={{ display: 'flex', justifyContent: 'center' }}>
             <FadeIn className="account-card" style={{ width: '100%', maxWidth: '400px' }}>
               <h3>Hai dimenticato la password?</h3>
-              {error && <p style={{ color: 'red', fontSize: '0.9rem', marginBottom: '16px' }}>{error}</p>}
+              {error && <p style={{ color: '#ef4444', fontSize: '0.9rem', marginBottom: '16px', textAlign: 'center' }}>{error}</p>}
               {message && <p style={{ color: 'var(--accent-green)', fontWeight: 'bold', fontSize: '0.9rem', marginBottom: '16px' }}>{message}</p>}
               
               {!message && (

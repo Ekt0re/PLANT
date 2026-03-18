@@ -4,6 +4,7 @@ import FadeIn from '@/components/FadeIn';
 import { createClient } from '@/utils/supabase/client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function Account() {
   const [isLogin, setIsLogin] = useState(true);
@@ -12,11 +13,22 @@ export default function Account() {
   const [name, setName] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const router = useRouter();
   
   const supabase = createClient();
 
-
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        router.push('/account/profilo');
+      } else {
+        setIsCheckingAuth(false);
+      }
+    };
+    checkUser();
+  }, [supabase, router]);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -47,6 +59,24 @@ export default function Account() {
     }
   };
 
+  if (isCheckingAuth) {
+    return (
+      <main style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ 
+            width: '60px', height: '60px', borderRadius: '50%', 
+            border: '3px solid var(--accent-green-light)', borderTopColor: 'var(--accent-green)',
+            animation: 'spin 1s linear infinite', margin: '0 auto 20px'
+          }}></div>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: '500' }}>Autenticazione in corso...</p>
+          <style>{`
+            @keyframes spin { to { transform: rotate(360deg); } }
+          `}</style>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main>
       <section className="page-hero text-center">
@@ -63,7 +93,7 @@ export default function Account() {
           <div className="account-grid" style={{ display: 'flex', justifyContent: 'center' }}>
             <FadeIn className="account-card" style={{ width: '100%', maxWidth: '400px' }}>
               <h3>{isLogin ? 'Accedi' : 'Registrati'}</h3>
-              {error && <p style={{ color: 'red', fontSize: '0.9rem', marginBottom: '16px' }}>{error}</p>}
+              {error && <p style={{ color: '#ef4444', fontSize: '0.9rem', marginBottom: '16px', textAlign: 'center' }}>{error}</p>}
               <form onSubmit={handleAuth} className="account-form">
                 {!isLogin && (
                   <div className="form-group">
