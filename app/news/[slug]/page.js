@@ -1,10 +1,9 @@
 import { createClient } from '@/utils/supabase/server';
 import { Calendar, User, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-import DOMPurify from 'isomorphic-dompurify';
-import { marked } from 'marked';
 import { notFound } from 'next/navigation';
 import NewsCartActions from '@/components/NewsCartActions';
+import NewsContent from '@/components/NewsContent';
 import Image from 'next/image';
 
 // Genera la metadata dinamica
@@ -75,32 +74,16 @@ export default async function NewsArticlePage({ params, searchParams }) {
       authorData = profile;
     }
 
-    // Parse markdown to HTML e sanitizzazione
-    // Verifichiamo che il contenuto sia presente per evitare crash
-    const newsContent = news.content || '';
-    const rawHtml = await marked.parse(newsContent);
-    
-    // Permettiamo iframes (video) e elementi vari, ma preveniamo script attack
-    const cleanHtml = DOMPurify.sanitize(rawHtml, { 
-      ADD_TAGS: ['iframe', 'style', 'button', 'center', 'div'], 
-      ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'target', 'class', 'style', 'data-product'] 
-    });
-
     const authorName = authorData ? `${authorData.first_name} ${authorData.last_name}` : 'Redazione PLANT';
     const pubDate = new Date(news.published_at || news.created_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
 
     // Calcolo tempo di lettura stimato
     const wordsPerMinute = 200;
-    const wordCount = newsContent.split(/\s+/).length;
+    const wordCount = (news.content || '').split(/\s+/).length;
     const readTime = Math.ceil(wordCount / wordsPerMinute);
 
     return (
       <main style={{ minHeight: '100vh', background: 'var(--bg-color)' }}>
-        {/* Iniezione CSS Custom da DB, protetto dentro questo componente */}
-        {news.custom_css && (
-          <style dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(news.custom_css, { ADD_TAGS: ['style'] }) }} />
-        )}
-
         <article className="news-article" style={{ padding: '120px 0 80px' }}>
           <div className="container" style={{ maxWidth: '800px', margin: '0 auto' }}>
             
@@ -158,11 +141,8 @@ export default async function NewsArticlePage({ params, searchParams }) {
             </header>
 
 
-            {/* Render del contenuto Markdown/HTML */}
-            <div 
-              className="news-content" 
-              dangerouslySetInnerHTML={{ __html: cleanHtml }} 
-            />
+            {/* Render del contenuto Markdown/HTML (Client Side Rendering) */}
+            <NewsContent content={news.content} customCss={news.custom_css} />
             
             {/* Gestore azioni carrello (Client Component) */}
             <NewsCartActions />
